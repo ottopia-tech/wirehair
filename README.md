@@ -1,4 +1,23 @@
 # Wirehair
+## Ottopia
+
+Steps to create a new cpu-specific build:
+1. Check your which CPU are you on. To check it, run this command:
+    ~~~
+    gcc -march=native -Q --help=target | grep -oPe '(?<=-march=).*' | sed -e 's/^[ \t]*//'
+    ~~~
+2. Create `build` folder 
+3. Run this cmake command, inside the `build` folder: (Please build both for Debug and Release!) 
+    ~~~
+    cmake -GNinja \ 
+          -DCMAKE_BUILD_TYPE=<Your build type [Debug | Release]> \ 
+          -DBUILD_SHARED_LIBS=ON \
+          -DCMAKE_INSTALL_PREFIX=${PWD}/../<CPU arch [ x86_64 |  aarch64 | etc.. ]>-<CPU options name (From step one)>-<Your build type [Debug | Release]>/ ..
+    ~~~
+4. Copy the folders created in the wirehair root dir to the root dir of the repo `wirehair-binaries`
+5. Commit and Push to desired branch
+6. Done!
+
 ## Fast and Portable Fountain Codes in C
 
 Wirehair produces a stream of error correction blocks from a data source
