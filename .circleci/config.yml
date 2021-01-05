@@ -1,0 +1,93 @@
+# Use the latest 2.1 version of CircleCI pipeline process engine. See: https://circleci.com/docs/2.0/configuration-reference
+version: 2.1
+
+executors:
+  global:
+    docker:
+      - image: rndottopia/ubuntu-cmake:18.04
+        auth:
+          username: ottopiarnd
+          password: $DOCKERHUB_PASSWORD
+
+jobs:
+  build_x86_64:
+    parameters:
+      build_type:
+        type: string
+        default: Release
+      cpu_type:
+        type: string
+        default: broadwell
+    executor: global
+    resource_class: xlarge
+    working_directory: ~/workspace/wirehair
+    environment:
+      BUILD_DIR: build-<< parameters.build_type >>-x86_64-<< parameters.cpu_type >>
+    steps:
+      - checkout
+      - run:
+          name: update submodules
+          working_directory: ~/workspace/wirehair
+          command: |
+            git submodule update --init --recursive
+      - run:
+          name: Configure << parameters.build_type >> x86_64 << parameters.cpu_type >>
+          working_directory: ~/workspace/wirehair
+          command: |
+            mkdir $BUILD_DIR
+            cd $BUILD_DIR
+            /root/workspace/cmake/bin/cmake -GNinja -DCMAKE_BUILD_TYPE=<< parameters.build_type >> -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/root/workspace/wirehair_install/x86_64-<< parameters.cpu_type >>-<< parameters.build_type >> ..
+      - run:
+          name: Build << parameters.build_type >> x86_64 << parameters.cpu_type >>
+          working_directory: ~/workspace/wirehair
+          command: |
+            cd $BUILD_DIR
+            ninja -j7
+      - run:
+          name: Install << parameters.build_type >> x86_64 << parameters.cpu_type >>
+          working_directory: ~/workspace/wirehair
+          command: |
+            cd $BUILD_DIR
+            ninja install
+      - persist_to_workspace:
+          root: ~/workspace/
+          paths:
+            - wirehair_install/x86_64-<< parameters.cpu_type >>-<< parameters.build_type >>
+
+  upload_to_wirehair_binary:
+    executor: global
+    resource_class: xlarge
+    working_directory: ~/workspace/wirehair
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ../
+      - run:
+          name: push to wirehair-binary
+          working_directory: ~/workspace
+          command: |
+            git clone git@github.com:ottopia-tech/wirehair-binary.git
+            cd wirehair-binary
+            chmod +x ../wirehair/.circleci/check_if_branch_exists.sh
+            ../wirehair/.circleci/check_if_branch_exists.sh
+            cp -R ~/workspace/wirehair_install/* .
+            git add .
+            chmod +x ../wirehair/.circleci/upload_if_repo_change.sh
+            ../wirehair/.circleci/upload_if_repo_change.sh
+
+workflows:
+  build_and_upload:
+    jobs:
+      - build_x86_64:
+          name: build_x86_64-<< matrix.build_type >>
+          context:
+            - orb_global
+          matrix:
+            parameters:
+              build_type: [ "Release", "Debug"]
+      - upload_to_wirehair_binary:
+          name: upload
+          context:
+            - orb_global
+          requires:
+            - build_x86_64
